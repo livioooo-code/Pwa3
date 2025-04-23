@@ -1,0 +1,168 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="my-4">Profil kuriera</h1>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-user me-2"></i>Dane osobowe</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-hover">
+                        <tbody>
+                            <tr>
+                                <th>Nazwa użytkownika:</th>
+                                <td>{{ courier.username }}</td>
+                            </tr>
+                            <tr>
+                                <th>Email:</th>
+                                <td>{{ courier.email }}</td>
+                            </tr>
+                            {% if courier.first_name %}
+                            <tr>
+                                <th>Imię:</th>
+                                <td>{{ courier.first_name }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if courier.last_name %}
+                            <tr>
+                                <th>Nazwisko:</th>
+                                <td>{{ courier.last_name }}</td>
+                            </tr>
+                            {% endif %}
+                            {% if courier.phone %}
+                            <tr>
+                                <th>Telefon:</th>
+                                <td>{{ courier.phone }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <th>Data rejestracji:</th>
+                                <td>{{ courier.created_at.strftime('%d-%m-%Y') }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="d-grid gap-2 mt-3">
+                        <a href="{{ url_for('logout') }}" class="btn btn-outline-danger">
+                            <i class="fas fa-sign-out-alt me-2"></i>Wyloguj się
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-route me-2"></i>Twoje trasy</h5>
+                </div>
+                <div class="card-body">
+                    {% if assignments %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Nazwa trasy</th>
+                                        <th>Data przypisania</th>
+                                        <th>Status</th>
+                                        <th>Dystans</th>
+                                        <th>Czas</th>
+                                        <th>Akcje</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for assignment in assignments %}
+                                    <tr>
+                                        <td>{{ assignment.route.name or "Trasa bez nazwy" }}</td>
+                                        <td>{{ assignment.assigned_at.strftime('%d-%m-%Y %H:%M') }}</td>
+                                        <td>
+                                            {% if assignment.status == 'assigned' %}
+                                                <span class="badge bg-info">Przypisana</span>
+                                            {% elif assignment.status == 'in_progress' %}
+                                                <span class="badge bg-warning">W trakcie</span>
+                                            {% elif assignment.status == 'completed' %}
+                                                <span class="badge bg-success">Zakończona</span>
+                                            {% elif assignment.status == 'canceled' %}
+                                                <span class="badge bg-danger">Anulowana</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ assignment.route.total_distance }} km</td>
+                                        <td>{{ assignment.route.total_time }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <a href="{{ url_for('load_route', route_id=assignment.route.id) }}" class="btn btn-outline-primary">
+                                                    <i class="fas fa-map-marked-alt"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-outline-danger" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#deleteRouteModal" 
+                                                        data-route-id="{{ assignment.route.id }}" 
+                                                        data-route-name="{{ assignment.route.name or 'Trasa bez nazwy' }}">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>Nie masz jeszcze przypisanych tras.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal do usuwania trasy -->
+<div class="modal fade" id="deleteRouteModal" tabindex="-1" aria-labelledby="deleteRouteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteRouteModalLabel">Potwierdzenie usunięcia</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Czy na pewno chcesz usunąć trasę <span id="routeNameToDelete" class="fw-bold"></span>?</p>
+                <p class="text-danger">Ta operacja jest nieodwracalna!</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <form id="deleteRouteForm" method="post" action="">
+                    <button type="submit" class="btn btn-danger">Usuń trasę</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Obsługa modalu usuwania trasy
+    document.addEventListener('DOMContentLoaded', function() {
+        const deleteRouteModal = document.getElementById('deleteRouteModal');
+        if (deleteRouteModal) {
+            deleteRouteModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                const routeId = button.getAttribute('data-route-id');
+                const routeName = button.getAttribute('data-route-name');
+                
+                const routeNameElement = document.getElementById('routeNameToDelete');
+                const deleteForm = document.getElementById('deleteRouteForm');
+                
+                routeNameElement.textContent = routeName;
+                deleteForm.action = `/delete_route/${routeId}`;
+            });
+        }
+    });
+</script>
+{% endblock %}
